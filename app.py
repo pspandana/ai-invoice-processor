@@ -29,13 +29,15 @@ if invoice_files:
                     
                     try:
                         # Run your agent with the invoice file
+                        import sys
+
                         result = subprocess.run([
-                            'python', 'main.py', 'analyze_invoice', file_path
+                            sys.executable, 'main.py', 'analyze_invoice', file_path
                         ], capture_output=True, text=True, timeout=30)
                         
                         if result.returncode == 0:
                             st.success("✅ Analysis Complete!")
-                            st.text_area("Agent Results:", result.stdout, height=200)
+                            st.text_area("Agent Results:", result.stdout, height=250)
                         else:
                             st.error("❌ Agent Error:")
                             st.text(result.stderr)

@@ -1,28 +1,89 @@
+import PyPDF2
+import os
+import re
+
+def extract_text_from_pdf(file_path):
+    """Extract text from PDF file"""
+    try:
+        with open(file_path, 'rb') as file:
+            reader = PyPDF2.PdfReader(file)
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text()
+        return text
+    except Exception as e:
+        return f"Error reading PDF: {e}"
+
 def analyze_invoice_simple(file_path):
-    """Simple invoice analysis without any API"""
-    import os
-    
+    """Extract and parse specific data from PDF generically"""
     if not os.path.exists(file_path):
         return f"Error: File {file_path} not found"
     
     file_name = os.path.basename(file_path)
     file_size = os.path.getsize(file_path)
     
-    # Different results for each invoice - NO EMOJIS
-    analysis_results = {
-        "sample_invoice_1.pdf": "Company: TechCorp Solutions | Amount: $2,847.50 | Date: 2024-01-10",
-        "sample_invoice_2.pdf": "Company: Global Industries | Amount: $5,123.75 | Date: 2024-01-15", 
-        "sample_invoice_3.pdf": "Company: Metro Services | Amount: $1,856.25 | Date: 2024-01-20",
-        "sample_invoice_4.pdf": "Company: Pacific Consulting | Amount: $3,429.80 | Date: 2024-01-25"
-    }
+    # Extract text from PDF
+    pdf_text = extract_text_from_pdf(file_path)
     
-    result = analysis_results.get(file_name, "Unknown invoice format")
+    # Clean up text
+    clean_text = ' '.join(pdf_text.split())
+    
+    # Company name extraction
+    company = "Not found"
+    lines = [line.strip() for line in pdf_text.split('\n') if line.strip()]
+    
+    company_parts = []
+    for line in lines:
+        if (len(line) > 1 and 
+            not any(word in line.lower() for word in ['www.', '@', 'project', 'invoice', 'number:', 'brand', 'design', 'marketing']) and
+            not line.replace('-', '').replace('(', '').replace(')', '').replace(' ', '').isdigit()):
+            company_parts.append(line)
+        else:
+            break
+            
+    if company_parts:
+        company = ' '.join(company_parts[:3])
+    
+    # Invoice number extraction
+    invoice_num = "Not found"
+    invoice_patterns = [
+        r'Invoice\s+Number:\s*([A-Z0-9-]+)',
+        r'Invoice\s*#:\s*([A-Z0-9-]+)',
+        r'INVOICE\s*#?\s*([A-Z0-9-]+)'
+    ]
+    for pattern in invoice_patterns:
+        match = re.search(pattern, clean_text, re.IGNORECASE)
+        if match:
+            invoice_num = match.group(1)
+            break
+    
+    # Amount extraction
+    amount = "Not found"
+    amount_patterns = [
+        r'TOTAL[^$]*\$?([\d,]+\.?\d{2})',
+        r'Total[^$]*\$?([\d,]+\.?\d{2})'
+    ]
+    for pattern in amount_patterns:
+        match = re.search(pattern, clean_text)
+        if match:
+            amount = f"${match.group(1)}"
+            break
+    
+    # Date extraction
+    date = "Not found"
+    date_pattern = r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})'
+    match = re.search(date_pattern, clean_text)
+    if match:
+        date = f"{match.group(1)} {match.group(2)}, {match.group(3)}"
     
     return f"""Invoice Analysis Complete!
 File: {file_name}
 Size: {file_size/1024:.1f} KB
 
-{result}
+Company: {company}
+Invoice Number: {invoice_num}
+Amount: {amount}
+Date: {date}
 
 Analysis finished successfully!"""
 
